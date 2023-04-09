@@ -6,6 +6,13 @@ tags:
   - python
 ---
 
+
+venv2\Scripts\activate 
+
+uvicorn main:app --reload
+
+ngrok http 8000
+
 # FastAPI Example
 
 This example starts up a [FastAPI](https://fastapi.tiangolo.com/) server.
