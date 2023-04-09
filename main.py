@@ -28,6 +28,14 @@ globals = {}
 class User(BaseModel):
     username: str
     password: str
+    
+class CreditCard(BaseModel):
+    number: str
+    expiration_month: str
+    expiration_year: str
+    cvv: str
+
+    
 
 # Create users table in SQLite
 conn = sqlite3.connect('users.db')
@@ -38,6 +46,17 @@ c.execute('''CREATE TABLE IF NOT EXISTS users
               password TEXT NOT NULL);''')
 conn.commit()
 conn.close()
+conn = sqlite3.connect('users.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS credit_cards
+             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              number TEXT NOT NULL,
+              expiration_month TEXT NOT NULL,
+              expiration_year TEXT NOT NULL,
+              cvv TEXT NOT NULL);''')
+conn.commit()
+conn.close()
+
 
 # Secret key for signing JWT tokens
 SECRET_KEY = "mysecretkey"
@@ -140,4 +159,36 @@ async def login(credentials: HTTPBasicCredentials):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(username, password)
     return {"token": token}
+
+@app.get("/vulnerable_sql")
+async def vulnerable_sql(query_param: str, token: str = Query(...)):
+    if not verify_token(token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    query = f"SELECT * FROM credit_cards WHERE number = '{query_param}'"
+    c.execute(query)
+    result = c.fetchone()
+    conn.close()
+    if result:
+        return {"credit_card": result}
+    else:
+        raise HTTPException(status_code=404, detail="Credit card not found")
+
+# Endpoint for adding a credit card
+@app.post("/credit_cards")
+async def add_credit_card(credit_card: CreditCard, token: str = Query(...)):
+    if not verify_token(token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO credit_cards (number, expiration_month, expiration_year, cvv) VALUES (?, ?, ?, ?)",
+              (credit_card.number, credit_card.expiration_month, credit_card.expiration_year, credit_card.cvv))
+    credit_card_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return {"message": f"Credit card with ID {credit_card_id} has been added"}
+    
+
+
 
